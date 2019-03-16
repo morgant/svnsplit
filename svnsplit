@@ -128,10 +128,10 @@ function repo_split() {
       while IFS= read -r line; do
         # build svn path and strip trailing slashes
         local svn_path="${inclusion_path}/${line}"
-        svn_path="${svn_path%%+(/)}"
-        
-        #echo "'${svn_path}' =~ ${inclusion} ?"
-        if [[ "${svn_path}" =~ $inclusion ]]; then
+        svn_path="${svn_path%/}"
+
+        #echo "'${svn_path}' = ${inclusion} ?"
+        if [[ "${svn_path}" = $inclusion ]]; then
           inclusions+=("${svn_path}")
           if $verbose; then echo "${svn_path}"; fi
         fi
@@ -141,7 +141,20 @@ function repo_split() {
 
   if [ "${#exclusion_globs[@]}" -gt 0 ]; then
     if $verbose; then echo "Excluding paths from '${in_repo}' repo:"; fi
-    # todo
+    for exclusion in "${exclusion_globs[@]}"; do
+      local exclusion_path="$(dirname "${exclusion}")"
+      while IFS= read -r line; do
+        # build svn path and strip trailing slashes
+        local svn_path="${exclusion_path}/${line}"
+        svn_path="${svn_path%/}"
+
+        #echo "'${svn_path}' = ${exclusion} ?"
+        if [[ "${svn_path}" = $exclusion ]]; then
+          exclusions+=("${svn_path}")
+          if $verbose; then echo "${svn_path}"; fi
+        fi
+      done <<< "$(svn list "${in_repo}/${exclusion_path}")"
+    done
   fi
 
   $success
