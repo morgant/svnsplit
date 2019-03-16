@@ -121,8 +121,16 @@ function repo_split() {
   local success=true
   #local tmp_dir="$(mktemp -d -t "$tool")"
 
+  # do a quick check to verify the svn repo URI is valid
+  if ! svn list "${in_repo}" >/dev/null 2>&1; then
+    success=false
+    echo "ERROR! Unable to access '${in_repo}' svn repo!"
+    exit 1
+  fi
+
+  # find matching subversion paths to be included
   if [ "${#inclusion_globs[@]}" -gt 0 ]; then
-    if $verbose; then echo "Including paths from '${in_repo}' repo:"; fi
+    if $verbose; then echo "Including paths from '${in_repo}' svn repo:"; fi
     for inclusion in "${inclusion_globs[@]}"; do
       local inclusion_path="$(dirname "${inclusion}")"
       while IFS= read -r line; do
@@ -139,8 +147,9 @@ function repo_split() {
     done
   fi
 
+  # find matching subversion paths to be excluded
   if [ "${#exclusion_globs[@]}" -gt 0 ]; then
-    if $verbose; then echo "Excluding paths from '${in_repo}' repo:"; fi
+    if $verbose; then echo "Excluding paths from '${in_repo}' svn repo:"; fi
     for exclusion in "${exclusion_globs[@]}"; do
       local exclusion_path="$(dirname "${exclusion}")"
       while IFS= read -r line; do
@@ -156,6 +165,8 @@ function repo_split() {
       done <<< "$(svn list "${in_repo}/${exclusion_path}")"
     done
   fi
+
+  
 
   $success
 }
