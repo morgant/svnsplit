@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+
+# 
+# svnsplit - Split subversion repositories
+# 
+# CHANGE LOG:
+# 
+# v0.1   - 2019-03-16 - Morgan Aldridge <morgant@makkintosshu.com>
+#                       Initial version
+# 
+# LICENSE:
+# 
+# Copyright (c) 2019, Morgan T. Aldridge. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without 
+# modification, are permitted provided that the following conditions are met:
+# 
+# - Redistributions of source code must retain the above copyright notice, this 
+#   list of conditions and the following disclaimer.
+# - Redistributions in binary form must reproduce the above copyright notice, 
+#   this list of conditions and the following disclaimer in the documentation 
+#   and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE 
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL 
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# 
+
+# info
+tool=$(basename "$0")
+version='0.1'
+copyright='(c) 2019 Morgan T. Aldridge'
+
+# environment variables
+
+# global variables
+argv=()
+argc=0
+verbose=false
+in_repo=""
+out_repo=""
+command=""
+inclusion_globs=()
+exclusion_globs=()
+inclusions=()
+exclusions=()
+
+# print usage instructions (help)
+function usage() {
+	echo "Usage: $tool [options] <command> [<args>]"
+	echo
+	echo 'Options:'
+	echo '  -h, --help            : print these usage instructions'
+	echo '  -i, --input           : input svn repo URI
+	echo '  -o, --output          : output svn repo name
+	echo '  -v, --verbose         : verbose output'
+	echo '  -V, --version         : print the version'
+	echo
+	echo 'Commands:'
+	echo '  include [paths]       : paths to include in output repo
+	echo '  exclude [paths]       : paths to exclude from output repo
+}
+
+# print version info
+function version() {
+	echo "$tool v$version $copyright"
+}
+
+# preprocess arguments and convert combined & long options to individual options
+function args_preprocess() {
+  # do nothing if we have no arguments to process
+  if [ $# -eq 0 ]; then return 0; fi
+  
+	# step through all arguments and pre-process them (we do this so we can 
+	# support multiple options specified together, e.g.: -abc vs. -a -b -c),
+	# GNU-style long options with alternate style values, and for easier
+	# actual handling
+	while [ $# -gt 0 ]; do
+		# is this an option (e.g. starts with a dash) or an argument?
+		if [ "${1:0:1}" = "-" ]; then
+			# is it a GNU-style long option (e.g. starts with a double-dash)?
+			if [ "${1:0:2}" = "--" ]; then
+				# push the option (everything before an equals) onto argv
+				argv=("${argv[@]}" "${1%%=*}")
+				
+				# is it the alternate "--long-opt=value" format? if so, make it
+				# "--long-opt value" format buy pushing the value (everything after the
+				# equals) on as a separate argument
+				case "$1" in *=*)
+					argv=("${argv[@]}" "${1##*=}") ;;
+				esac
+			# otherwise, is it multiple single options specified together?
+			elif [ ${#1} -gt 2 ]; then
+				tmp="$1"
+				# push each onto argv as single options
+				for (( i=1; i < ${#tmp}; i++ )); do
+					argv=("${argv[@]}" "-${tmp:$i:1}")
+				done
+			# otherwise, it must be a single option so just push it onto argv
+			else
+				argv=("${argv[@]}" "$1")
+			fi
+			shift
+		# arguments just get pushed onto argv in order too
+		else
+			argv=("${argv[@]}" "$1")
+			shift
+		fi
+	done
+	argc=${#argv[@]}
+}
+
+function repo_split() {
+  local success=true
+  #local tmp_dir="$(mktemp -d -t "$tool")"
+
+  if [ "${#inclusion_globs[@]}" -gt 0 ]; then
+    if $verbose; then echo "Including paths from '${in_repo}' repo:"; fi
+    for inclusion in "${inclusion_globs[@]}"; do
+      local inclusion_path="$(dirname "${inclusion}")"
+      while IFS= read -r line; do
+        # build svn path and strip trailing slashes
+        local svn_path="${inclusion_path}/${line}"
+        svn_path="${svn_path%%+(/)}"
+        
+        #echo "'${svn_path}' =~ ${inclusion} ?"
+        if [[ "${svn_path}" =~ $inclusion ]]; then
+          inclusions+=("${svn_path}")
+          if $verbose; then echo "${svn_path}"; fi
+        fi
+      done <<< "$(svn list "${in_repo}/${inclusion_path}")"
+    done
+  fi
+
+  if [ "${#exclusion_globs[@]}" -gt 0 ]; then
+    if $verbose; then echo "Excluding paths from '${in_repo}' repo:"; fi
+    # todo
+  fi
+
+  $success
+}
+
+function main() {
+  # require at least one option or argument
+  if [ $argc -eq 0 ]; then
+    echo "No options or arguments were specified!"
+    echo
+    usage
+    exit 1
+  fi
+  
+	# handle arguments
+	local command repository
+	for (( i=0; i<$argc; i++ )); do
+		# is this an option (e.g. starts with a dash) or an argument?
+		if [ "${argv[$i]:0:1}" = "-" ]; then
+			case "${argv[$i]}" in
+			  # see if the user intended us to run in verbose mode
+				"-v" | "--verbose")
+					verbose=true
+					;;
+				# see if the user requested help
+				"-h" | "--help")
+					usage
+					exit
+					;;
+				# input repo URI
+				"-i" | "--input")
+				  in_repo="${argv[$i+1]}"
+			    (( i++ ))
+				  ;;
+				# output repo name
+				"-o" | "--output")
+				  out_repo="${argv[$i+1]}"
+			    (( i++ ))
+				  ;;
+				# see if the user requested the version
+				"-V" | "--version")
+					version
+					exit
+					;;
+				# handle other options
+			
+			
+				# unknown option
+				*)
+					echo "$tool: Unknown option '${argv[$i]}''!"
+					exit 1
+					;;
+			esac
+		# handle arguments
+		else
+			case "${argv[$i]}" in
+			  # commands
+			  "include" | "exclude")
+			    command="${argv[$i]}"
+			    ;;
+			  # other non-command input (inclusions & exclusions)
+				*)
+				  case "${command}" in
+				    "include")
+				      inclusion_globs+=("${argv[$i]}")
+				      ;;
+				    "exclude")
+				      exclusion_globs+=("${argv[$i]}")
+				      ;;
+				    *)
+				      # unknown command/argument
+				      echo "$tool: Unknown command '${argv[$i]}'!"
+					    exit 1
+					    ;;
+					esac
+					;;
+			esac
+		fi
+	done
+	
+	if [ -z "$in_repo" ]; then
+	  echo "$tool: missing input svn repo URI!"
+	  exit 1
+	fi
+	if [ -z "$out_repo" ]; then
+	  echo "$tool: missing output svn repo name!"
+	  exit 1
+	fi
+	
+	repo_split
+}
+
+args_preprocess "$@"
+main
