@@ -119,13 +119,16 @@ function args_preprocess() {
 
 function repo_split() {
   local success=true
-  #local tmp_dir="$(mktemp -d -t "$tool")"
 
   # do a quick check to verify the svn repo URI is valid
+  local local_repo=""
   if ! svn list "${in_repo}" >/dev/null 2>&1; then
     success=false
     echo "ERROR! Unable to access '${in_repo}' svn repo!"
     exit 1
+  # require a local repo, for now
+  elif [[ "${in_repo}" =~ ^file://(.+)$ ]]; then
+    local_repo="${BASH_REMATCH[1]}"
   fi
 
   # find matching subversion paths to be included
@@ -166,7 +169,25 @@ function repo_split() {
     done
   fi
 
+  # create a temp directory
+  if $verbose; then echo "Creating temp directory..."; fi
+  local temp_dir="$(mktemp -d -t "${tool}")"
+
+  # create an svn dump to filter
+  local dump_file="${temp_dir}/$(basename "${local_repo}").svndump"
+  if $verbose; then echo "Dumping '${local_repo}' svn repo to '${dump_file}' for processing..."; fi
+  if ! svnadmin dump "${local_repo}" > "${dump_file}"; then
+    success=false
+    echo "ERROR! An unknown error occurred while dumping subversion repo!"
+  fi
+
   
+
+  # clean up the temp directory
+  if $verbose; then echo "Cleaning up temp directory '${temp_dir}'..."; fi
+  if ! rm -rf "${temp_dir}"; then
+    echo "ERROR! An unknown error occurred while cleaning up temp directory!"
+  fi
 
   $success
 }
