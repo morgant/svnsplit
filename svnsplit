@@ -129,6 +129,10 @@ function repo_split() {
   # require a local repo, for now
   elif [[ "${in_repo}" =~ ^file://(.+)$ ]]; then
     local_repo="${BASH_REMATCH[1]}"
+  else
+    success=false
+    echo "ERROR! Unable to resolve local path for '${in_repo}' svn repo!"
+    exit 1
   fi
 
   # find matching subversion paths to be included
@@ -215,7 +219,26 @@ function repo_split() {
     echo "ERROR! An unknown error occurred while filtering the subversion dump file with exclusions!"
   fi
 
-  
+  # create the final repository
+  if [ -z "${out_repo}" ]; then
+    success=false
+    echo "ERROR! No name provided for new output svn repo!"
+    exit 1
+  else
+    if $verbose; then echo "Creating new '${out_repo}' svn repo..."; fi
+    if ! svnadmin create "${out_repo}"; then
+      success=false
+      echo "ERROR! An unknown error occurred creating new '${out_repo}' svn repo!"
+    else
+      if $verbose; then echo "Importing '${exclusions_filtered_file}' filtered subversion dump file..."; fi
+      if ! svnadmin load "${out_repo}" < "${exclusions_filtered_file}"; then
+        success=false
+        echo "ERROR! An unknown error occurred loading filtered subversion dump file into new svn repo!"
+      fi
+    fi
+  fi
+
+  # summary
 
   # clean up the temp directory
   if $verbose; then echo "Cleaning up temp directory '${temp_dir}'..."; fi
