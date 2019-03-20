@@ -144,6 +144,7 @@ function repo_split() {
         # build svn path and strip trailing slashes
         local svn_path="${inclusion_path}/${line}"
         svn_path="${svn_path%/}"
+        if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
 
         #echo "'${svn_path}' = ${inclusion} ?"
         if [[ "${svn_path}" = $inclusion ]]; then
@@ -163,6 +164,7 @@ function repo_split() {
         # build svn path and strip trailing slashes
         local svn_path="${exclusion_path}/${line}"
         svn_path="${svn_path%/}"
+        if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
 
         #echo "'${svn_path}' = ${exclusion} ?"
         if [[ "${svn_path}" = $exclusion ]]; then
