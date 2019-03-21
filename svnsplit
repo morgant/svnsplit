@@ -180,11 +180,13 @@ function repo_split() {
   local temp_dir="$(mktemp -d -t "${tool}")"
 
   # create an svn dump to filter
-  local dump_file="${temp_dir}/$(basename "${local_repo}").svndump"
-  if $verbose; then echo "Dumping '${local_repo}' svn repo to '${dump_file}' for filtering..."; fi
-  if ! svnadmin dump "${local_repo}" > "${dump_file}"; then
-    success=false
-    echo "ERROR! An unknown error occurred while dumping subversion repo!"
+  if $success; then
+    local dump_file="${temp_dir}/$(basename "${local_repo}").svndump"
+    if $verbose; then echo "Dumping '${local_repo}' svn repo to '${dump_file}' for filtering..."; fi
+    if ! svnadmin dump "${local_repo}" > "${dump_file}"; then
+      success=false
+      echo "ERROR! An unknown error occurred while dumping subversion repo!"
+    fi
   fi
 
   # build svndumpfilter command for inclusions
@@ -197,11 +199,13 @@ function repo_split() {
   fi
 
   # filter svn dump for inclusions
-  local inclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.inclusions.svndump"
-  if $verbose; then echo "Filtering '${dump_file}' with inclusions..."; fi
-  if ! "${filter_cmd[@]}" < "${dump_file}" > "${inclusions_filtered_file}"; then
-    success=false
-    echo "ERROR! An unknown error occurred while filtering the subversion dump file with inclusions!"
+  if $success; then
+    local inclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.inclusions.svndump"
+    if $verbose; then echo "Filtering '${dump_file}' with inclusions..."; fi
+    if ! "${filter_cmd[@]}" < "${dump_file}" > "${inclusions_filtered_file}"; then
+      success=false
+      echo "ERROR! An unknown error occurred while filtering the subversion dump file with inclusions!"
+    fi
   fi
 
   # build svndumpfilter command for exclusions
@@ -214,11 +218,13 @@ function repo_split() {
   fi
 
   # filter svn dump for exclusions
-  local exclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.exclusions.svndump"
-  if $verbose; then echo "Filtering '${inclusions_filtered_file}' with exclusions..."; fi
-  if ! "${filter_cmd[@]}" < "${inclusions_filtered_file}" > "${exclusions_filtered_file}"; then
-    success=false
-    echo "ERROR! An unknown error occurred while filtering the subversion dump file with exclusions!"
+  if $success; then
+    local exclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.exclusions.svndump"
+    if $verbose; then echo "Filtering '${inclusions_filtered_file}' with exclusions..."; fi
+    if ! "${filter_cmd[@]}" < "${inclusions_filtered_file}" > "${exclusions_filtered_file}"; then
+      success=false
+      echo "ERROR! An unknown error occurred while filtering the subversion dump file with exclusions!"
+    fi
   fi
 
   # create the final repository
@@ -226,7 +232,7 @@ function repo_split() {
     success=false
     echo "ERROR! No name provided for new output svn repo!"
     exit 1
-  else
+  elif $success; then
     if $verbose; then echo "Creating new '${out_repo}' svn repo..."; fi
     if ! svnadmin create "${out_repo}"; then
       success=false
