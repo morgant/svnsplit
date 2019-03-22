@@ -119,6 +119,20 @@ function args_preprocess() {
 	argc=${#argv[@]}
 }
 
+function in_array() {
+  local found=false
+  local value="$1"
+  shift
+
+  if [ -z "$value" ]; then $found; fi
+  if [ ${#@} -lt 1 ]; then $found; fi
+  for array_value in "$@"; do
+    if [ "$value" = "$array_value" ]; then found=true; fi
+  done
+
+  $found
+}
+
 function repo_split() {
   local success=true
 
@@ -137,23 +151,32 @@ function repo_split() {
     exit 1
   fi
 
+  # determine the current revision in the repo
+  local revision="$(svn info "${in_repo}" | grep Revision | awk '{print $2}')"
+
   # find matching subversion paths to be included
   if [ "${#inclusion_globs[@]}" -gt 0 ]; then
     if $verbose; then echo "Including paths from '${in_repo}' svn repo:"; fi
     for inclusion in "${inclusion_globs[@]}"; do
-      local inclusion_path="$(dirname "${inclusion}")"
-      while IFS= read -r line; do
-        # build svn path and strip trailing slashes
-        local svn_path="${inclusion_path}/${line}"
-        svn_path="${svn_path%/}"
-        if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
+      # check every revision for matching paths
+      for (( i=0; i<$revision; i++ )); do
+        local inclusion_path="$(dirname "${inclusion}")"
+        while IFS= read -r line; do
+          # build svn path and strip trailing slashes
+          local svn_path="${inclusion_path}/${line}"
+          svn_path="${svn_path%/}"
+          if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
 
-        #echo "'${svn_path}' = ${inclusion} ?"
-        if [[ "${svn_path}" = $inclusion ]]; then
-          inclusions+=("${svn_path}")
-          if $verbose; then echo "${svn_path}"; fi
-        fi
-      done <<< "$(svn list "${in_repo}/${inclusion_path}")"
+          #echo "'${svn_path}' = ${inclusion} ?"
+          if [[ "${svn_path}" = $inclusion ]] && ! in_array "${svn_path}" "${inclusions[@]}"; then
+            inclusions+=("${svn_path}")
+            if $verbose; then echo "${svn_path}"; fi
+
+            # skip remaining revisions since a match was found
+            i=$revision
+          fi
+        done <<< "$(svn -r "${i}" list "${in_repo}/${inclusion_path}" 2>/dev/null)"
+      done
     done
   fi
 
@@ -161,19 +184,25 @@ function repo_split() {
   if [ "${#exclusion_globs[@]}" -gt 0 ]; then
     if $verbose; then echo "Excluding paths from '${in_repo}' svn repo:"; fi
     for exclusion in "${exclusion_globs[@]}"; do
-      local exclusion_path="$(dirname "${exclusion}")"
-      while IFS= read -r line; do
-        # build svn path and strip trailing slashes
-        local svn_path="${exclusion_path}/${line}"
-        svn_path="${svn_path%/}"
-        if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
+      # check every revision for matching paths
+      for (( i=0; i<$revision; i++ )); do
+        local exclusion_path="$(dirname "${exclusion}")"
+        while IFS= read -r line; do
+          # build svn path and strip trailing slashes
+          local svn_path="${exclusion_path}/${line}"
+          svn_path="${svn_path%/}"
+          if [[ "${svn_path}" =~ ^\./(.*)$ ]]; then svn_path="${BASH_REMATCH[1]}"; fi
 
-        #echo "'${svn_path}' = ${exclusion} ?"
-        if [[ "${svn_path}" = $exclusion ]]; then
-          exclusions+=("${svn_path}")
-          if $verbose; then echo "${svn_path}"; fi
-        fi
-      done <<< "$(svn list "${in_repo}/${exclusion_path}")"
+          #echo "'${svn_path}' = ${exclusion} ?"
+          if [[ "${svn_path}" = $exclusion ]] && ! in_array "${svn_path}" "${exclusions[@]}"; then
+            exclusions+=("${svn_path}")
+            if $verbose; then echo "${svn_path}"; fi
+
+            # skip remaining revisions since a match was found
+            i=$revision
+          fi
+        done <<< "$(svn list "${in_repo}/${exclusion_path}" 2>/dev/null)"
+      done
     done
   fi
 
