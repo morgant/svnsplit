@@ -44,6 +44,7 @@ copyright='(c) 2019 Morgan T. Aldridge'
 argv=()
 argc=0
 verbose=false
+dump=false
 in_repo=""
 out_repo=""
 command=""
@@ -57,6 +58,7 @@ function usage() {
 	echo "Usage: $tool [options] <command> [<args>]"
 	echo
 	echo 'Options:'
+	echo '  -d, --dump            : produce dump file instead of repository'
 	echo '  -h, --help            : print these usage instructions'
 	echo '  -i, --input           : input svn repo URI
 	echo '  -o, --output          : output svn repo name
@@ -232,6 +234,14 @@ function repo_split() {
     success=false
     echo "ERROR! No name provided for new output svn repo!"
     exit 1
+  # produce a filtered dump file
+  elif $success && $dump; then
+    if $verbose; then echo "Creating filtered svn dump file '${out_repo}'..."; fi
+    if ! cp "${exclusions_filtered_file}" "${out_repo}"; then
+      success=false
+      echo "ERROR! An unknown error occurred creating new '${out_repo}' dump file!"
+    fi
+  # produce a new repo
   elif $success; then
     if $verbose; then echo "Creating new '${out_repo}' svn repo..."; fi
     if ! svnadmin create "${out_repo}"; then
@@ -281,6 +291,10 @@ function main() {
 					usage
 					exit
 					;;
+				# output dump file instead of repository
+				"-d" | "--dump")
+				  dump=true
+				  ;;
 				# input repo URI
 				"-i" | "--input")
 				  in_repo="${argv[$i+1]}"
