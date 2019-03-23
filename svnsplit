@@ -221,41 +221,46 @@ function repo_split() {
   fi
 
   # build svndumpfilter command for inclusions
-  local filter_cmd=("svndumpfilter" "--drop-empty-revs" "--renumber-revs")
-  if [ "${#inclusions[@]}" -gt 0 ]; then
+  local inclusions_filtered_file
+  if $success && [ "${#inclusions[@]}" -gt 0 ]; then
+    local filter_cmd=("svndumpfilter" "--drop-empty-revs" "--renumber-revs")
     filter_cmd+=("include")
     for inclusion in "${inclusions[@]}"; do
       filter_cmd+=("${inclusion}")
     done
-  fi
 
-  # filter svn dump for inclusions
-  if $success; then
-    local inclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.inclusions.svndump"
+    # filter svn dump for inclusions
+    inclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.inclusions.svndump"
     if $verbose; then echo "Filtering '${dump_file}' with inclusions..."; fi
     if ! "${filter_cmd[@]}" < "${dump_file}" > "${inclusions_filtered_file}"; then
       success=false
       echo "ERROR! An unknown error occurred while filtering the subversion dump file with inclusions!"
     fi
+  # just use the dump file for the post-inclusions-filtered file if there were no inclusions
+  elif [ "${#inclusions[@]}" -lt 1 ]; then
+    inclusions_filtered_file="${dump_file}"
   fi
 
   # build svndumpfilter command for exclusions
-  local filter_cmd=("svndumpfilter" "--drop-empty-revs" "--renumber-revs")
+  local exclusions_filtered_file
   if [ "${#exclusions[@]}" -gt 0 ]; then
+    local filter_cmd=("svndumpfilter" "--drop-empty-revs" "--renumber-revs")
     filter_cmd+=("exclude")
     for exclusion in "${exclusions[@]}"; do
       filter_cmd+=("${exclusion}")
     done
-  fi
 
-  # filter svn dump for exclusions
-  if $success; then
-    local exclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.exclusions.svndump"
+    # filter svn dump for exclusions
+    exclusions_filtered_file="${temp_dir}/$(basename "${local_repo}").filtered.exclusions.svndump"
     if $verbose; then echo "Filtering '${inclusions_filtered_file}' with exclusions..."; fi
     if ! "${filter_cmd[@]}" < "${inclusions_filtered_file}" > "${exclusions_filtered_file}"; then
       success=false
       echo "ERROR! An unknown error occurred while filtering the subversion dump file with exclusions!"
     fi
+  # just use the post-inclusions-filtered file for the post-exclusions-filtered file if there were no exclusions
+  # (which may or may not be just the dump file, if there were no inclusions)
+  elif [ "${#exclusions[@]}" -lt 1 ]; then
+    exclusions_filtered_file="${inclusions_filtered_file}"
   fi
 
   # create the final repository
@@ -265,7 +270,7 @@ function repo_split() {
     exit 1
   # produce a filtered dump file
   elif $success && $dump; then
-    if $verbose; then echo "Creating filtered svn dump file '${out_repo}'..."; fi
+    if $verbose; then echo "Creating filtered svn dump file '${out_repo}' instead of new svn repo..."; fi
     if ! cp "${exclusions_filtered_file}" "${out_repo}"; then
       success=false
       echo "ERROR! An unknown error occurred creating new '${out_repo}' dump file!"
