@@ -7,6 +7,8 @@
 # 
 # v0.1   - 2019-03-16 - Morgan Aldridge <morgant@makkintosshu.com>
 #                       Initial version
+# v0.1.1 - 2020-09-12 - Morgan Aldridge
+#                       Fix for skipped revision matches for includes/excludes.
 # 
 # LICENSE:
 # 
@@ -35,8 +37,8 @@
 
 # info
 tool=$(basename "$0")
-version='0.1'
-copyright='(c) 2019 Morgan T. Aldridge'
+version='0.1.1'
+copyright='(c) 2019-2020 Morgan T. Aldridge'
 
 # environment variables
 
@@ -171,9 +173,6 @@ function repo_split() {
           if [[ "${svn_path}" = $inclusion ]] && ! in_array "${svn_path}" "${inclusions[@]}"; then
             inclusions+=("${svn_path}")
             if $verbose; then echo "${svn_path}"; fi
-
-            # skip remaining revisions since a match was found
-            i=$revision
           fi
         done <<< "$(svn -r "${i}" list "${in_repo}/${inclusion_path}" 2>/dev/null)"
       done
@@ -197,9 +196,6 @@ function repo_split() {
           if [[ "${svn_path}" = $exclusion ]] && ! in_array "${svn_path}" "${exclusions[@]}"; then
             exclusions+=("${svn_path}")
             if $verbose; then echo "${svn_path}"; fi
-
-            # skip remaining revisions since a match was found
-            i=$revision
           fi
         done <<< "$(svn list "${in_repo}/${exclusion_path}" 2>/dev/null)"
       done
